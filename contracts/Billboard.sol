@@ -18,7 +18,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * Rules:
  * - Bidding opens 30 minutes before each round
  * - Highest bid when round starts wins
- * - Losing bids are refunded
+ * - Losing bids are refunded (pull-based for safety)
  * - Winner's ad displays for 12 hours
  * - Revenue used for $BB buyback & burn
  */
@@ -41,6 +41,7 @@ contract Billboard is Ownable, ReentrancyGuard {
         string title;
         uint256 amount;
         bool refunded;
+        bool isWinner;
     }
 
     IERC20 public immutable usdc;
@@ -64,13 +65,19 @@ contract Billboard is Ownable, ReentrancyGuard {
     // Bids for upcoming round: slot => roundId => bids[]
     mapping(uint256 => mapping(uint256 => Bid[])) public roundBids;
 
-    // Highest bid per slot for upcoming round
+    // Highest bid per slot for current bidding round
     mapping(uint256 => uint256) public highestBid;
     mapping(uint256 => address) public highestBidder;
+    mapping(uint256 => uint256) public highestBidRound; // Track which round the highestBid is for
 
     // Track last finalized round per slot
     mapping(uint256 => uint256) public lastFinalizedRound;
 
+    // Pending refunds (pull-based for safety)
+    mapping(address => uint256) public pendingRefunds;
+
+    // Track revenue separately from refund pool
+    uint256 public availableRevenue;
     uint256 public totalRevenue;
     uint256 public totalBurned;
     uint256 public totalRounds;
@@ -90,9 +97,11 @@ contract Billboard is Ownable, ReentrancyGuard {
         address indexed winner,
         uint256 winningBid
     );
-    event BidRefunded(
-        uint256 indexed slot,
-        uint256 indexed roundId,
+    event RefundAvailable(
+        address indexed bidder,
+        uint256 amount
+    );
+    event RefundClaimed(
         address indexed bidder,
         uint256 amount
     );
@@ -105,7 +114,6 @@ contract Billboard is Ownable, ReentrancyGuard {
 
     /**
      * @notice Get current round ID based on timestamp
-     * @dev Round 0 starts at Unix epoch, increments every 12 hours
      */
     function getCurrentRoundId() public view returns (uint256) {
         return block.timestamp / ROUND_DURATION;
@@ -120,11 +128,9 @@ contract Billboard is Ownable, ReentrancyGuard {
 
     /**
      * @notice Check if bidding is currently open
-     * @dev Bidding opens 30 minutes before each round
      */
     function isBiddingOpen() public view returns (bool) {
         uint256 timeInRound = block.timestamp % ROUND_DURATION;
-        // Bidding is open in last 30 minutes of current round
         return timeInRound >= (ROUND_DURATION - BIDDING_WINDOW);
     }
 
@@ -155,6 +161,17 @@ contract Billboard is Ownable, ReentrancyGuard {
     }
 
     /**
+     * @notice Get effective highest bid (only if for current bidding round)
+     */
+    function getEffectiveHighestBid(uint256 slot) public view returns (uint256) {
+        uint256 nextRound = getNextRoundId();
+        if (highestBidRound[slot] == nextRound) {
+            return highestBid[slot];
+        }
+        return 0; // Reset for new round
+    }
+
+    /**
      * @notice Place a bid for the next round
      */
     function placeBid(
@@ -172,7 +189,9 @@ contract Billboard is Ownable, ReentrancyGuard {
 
         uint256 minBid = getMinBidForSlot(slot);
         require(bidAmount >= minBid, "Bid below minimum");
-        require(bidAmount > highestBid[slot], "Bid must be higher than current highest");
+
+        uint256 effectiveHighest = getEffectiveHighestBid(slot);
+        require(bidAmount > effectiveHighest, "Bid must be higher than current highest");
 
         uint256 nextRound = getNextRoundId();
 
@@ -186,20 +205,20 @@ contract Billboard is Ownable, ReentrancyGuard {
             linkUrl: linkUrl,
             title: title,
             amount: bidAmount,
-            refunded: false
+            refunded: false,
+            isWinner: false
         }));
 
-        // Update highest bid
+        // Update highest bid for this round
         highestBid[slot] = bidAmount;
         highestBidder[slot] = msg.sender;
+        highestBidRound[slot] = nextRound;
 
         emit BidPlaced(slot, nextRound, msg.sender, bidAmount);
     }
 
     /**
      * @notice Place bid on behalf of advertiser (for x402 flow)
-     * @dev Owner must have USDC and approve this contract first
-     *      USDC is transferred from owner to contract for refund handling
      */
     function placeBidFor(
         uint256 slot,
@@ -217,11 +236,13 @@ contract Billboard is Ownable, ReentrancyGuard {
 
         uint256 minBid = getMinBidForSlot(slot);
         require(bidAmount >= minBid, "Bid below minimum");
-        require(bidAmount > highestBid[slot], "Bid must be higher than current highest");
+
+        uint256 effectiveHighest = getEffectiveHighestBid(slot);
+        require(bidAmount > effectiveHighest, "Bid must be higher than current highest");
 
         uint256 nextRound = getNextRoundId();
 
-        // Transfer USDC from owner (server wallet) to contract for refund handling
+        // Transfer USDC from owner (server wallet) to contract
         usdc.safeTransferFrom(msg.sender, address(this), bidAmount);
 
         // Record bid
@@ -231,19 +252,21 @@ contract Billboard is Ownable, ReentrancyGuard {
             linkUrl: linkUrl,
             title: title,
             amount: bidAmount,
-            refunded: false
+            refunded: false,
+            isWinner: false
         }));
 
-        // Update highest bid
+        // Update highest bid for this round
         highestBid[slot] = bidAmount;
         highestBidder[slot] = advertiser;
+        highestBidRound[slot] = nextRound;
 
         emit BidPlaced(slot, nextRound, advertiser, bidAmount);
     }
 
     /**
-     * @notice Finalize a round - set winner and refund losers
-     * @dev Can be called by anyone after round starts
+     * @notice Finalize a round - set winner and queue refunds
+     * @dev Uses pull-based refunds for safety
      */
     function finalizeRound(uint256 slot) external nonReentrant {
         require(slot < NUM_SLOTS, "Invalid slot");
@@ -251,6 +274,8 @@ contract Billboard is Ownable, ReentrancyGuard {
         uint256 currentRound = getCurrentRoundId();
         require(currentRound > lastFinalizedRound[slot], "Round already finalized");
 
+        // Finalize the round that just ended (currentRound)
+        // Bids were placed for this round during the previous bidding window
         uint256 roundToFinalize = currentRound;
         Bid[] storage bids = roundBids[slot][roundToFinalize];
 
@@ -258,10 +283,7 @@ contract Billboard is Ownable, ReentrancyGuard {
             // No bids - clear current ad
             delete currentAds[slot];
             lastFinalizedRound[slot] = roundToFinalize;
-
-            // Reset highest bid for next round
-            highestBid[slot] = 0;
-            highestBidder[slot] = address(0);
+            emit RoundFinalized(slot, roundToFinalize, address(0), 0);
             return;
         }
 
@@ -276,39 +298,58 @@ contract Billboard is Ownable, ReentrancyGuard {
             }
         }
 
-        Bid storage winningBid = bids[winningIndex];
+        // Mark winner
+        bids[winningIndex].isWinner = true;
 
         // Set current ad
         currentAds[slot] = Ad({
-            advertiser: winningBid.bidder,
-            imageUrl: winningBid.imageUrl,
-            linkUrl: winningBid.linkUrl,
-            title: winningBid.title,
-            bidAmount: winningBid.amount,
+            advertiser: bids[winningIndex].bidder,
+            imageUrl: bids[winningIndex].imageUrl,
+            linkUrl: bids[winningIndex].linkUrl,
+            title: bids[winningIndex].title,
+            bidAmount: bids[winningIndex].amount,
             roundId: roundToFinalize
         });
 
         // Add to history
         adHistory.push(currentAds[slot]);
 
-        // Refund losing bids
+        // Queue refunds for losers (pull-based)
         for (uint256 i = 0; i < bids.length; i++) {
             if (i != winningIndex && !bids[i].refunded) {
                 bids[i].refunded = true;
-                usdc.safeTransfer(bids[i].bidder, bids[i].amount);
-                emit BidRefunded(slot, roundToFinalize, bids[i].bidder, bids[i].amount);
+                pendingRefunds[bids[i].bidder] += bids[i].amount;
+                emit RefundAvailable(bids[i].bidder, bids[i].amount);
             }
         }
 
+        // Track revenue (winner's bid)
+        availableRevenue += winningAmount;
         totalRevenue += winningAmount;
         totalRounds++;
         lastFinalizedRound[slot] = roundToFinalize;
 
-        // Reset highest bid for next round
-        highestBid[slot] = 0;
-        highestBidder[slot] = address(0);
+        emit RoundFinalized(slot, roundToFinalize, bids[winningIndex].bidder, winningAmount);
+    }
 
-        emit RoundFinalized(slot, roundToFinalize, winningBid.bidder, winningAmount);
+    /**
+     * @notice Claim pending refund (pull-based for safety)
+     */
+    function claimRefund() external nonReentrant {
+        uint256 amount = pendingRefunds[msg.sender];
+        require(amount > 0, "No refund available");
+
+        pendingRefunds[msg.sender] = 0;
+        usdc.safeTransfer(msg.sender, amount);
+
+        emit RefundClaimed(msg.sender, amount);
+    }
+
+    /**
+     * @notice Check pending refund for an address
+     */
+    function getPendingRefund(address user) external view returns (uint256) {
+        return pendingRefunds[user];
     }
 
     /**
@@ -383,26 +424,25 @@ contract Billboard is Ownable, ReentrancyGuard {
             getNextRoundId(),
             timeUntilBiddingOpens(),
             timeUntilRoundEnds(),
-            highestBid[SLOT_MAIN],
-            highestBidder[SLOT_MAIN],
-            highestBid[SLOT_SECONDARY],
-            highestBidder[SLOT_SECONDARY]
+            getEffectiveHighestBid(SLOT_MAIN),
+            highestBidRound[SLOT_MAIN] == getNextRoundId() ? highestBidder[SLOT_MAIN] : address(0),
+            getEffectiveHighestBid(SLOT_SECONDARY),
+            highestBidRound[SLOT_SECONDARY] == getNextRoundId() ? highestBidder[SLOT_SECONDARY] : address(0)
         );
     }
 
     /**
-     * @notice Get minimum bid to win a slot (must beat current highest)
+     * @notice Get minimum bid to win a slot
      */
     function getMinimumBid(uint256 slot) external view returns (uint256) {
         require(slot < NUM_SLOTS, "Invalid slot");
 
-        uint256 current = highestBid[slot];
+        uint256 current = getEffectiveHighestBid(slot);
         uint256 minForSlot = getMinBidForSlot(slot);
 
         if (current == 0) {
             return minForSlot;
         }
-        // Must bid at least 1 unit more than current highest
         return current + 1;
     }
 
@@ -414,18 +454,20 @@ contract Billboard is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Withdraw USDC revenue (for buyback & burn)
+     * @notice Withdraw ONLY revenue (not pending refunds)
      */
     function withdrawRevenue(address to) external onlyOwner {
-        uint256 balance = usdc.balanceOf(address(this));
-        require(balance > 0, "No revenue to withdraw");
+        require(availableRevenue > 0, "No revenue to withdraw");
 
-        usdc.safeTransfer(to, balance);
-        emit RevenueWithdrawn(to, balance);
+        uint256 amount = availableRevenue;
+        availableRevenue = 0;
+        usdc.safeTransfer(to, amount);
+
+        emit RevenueWithdrawn(to, amount);
     }
 
     /**
-     * @notice Record BB tokens burned (called after buyback)
+     * @notice Record BB tokens burned
      */
     function recordBurn(uint256 amount) external onlyOwner {
         totalBurned += amount;
