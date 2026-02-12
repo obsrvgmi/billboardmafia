@@ -198,6 +198,8 @@ contract Billboard is Ownable, ReentrancyGuard {
 
     /**
      * @notice Place bid on behalf of advertiser (for x402 flow)
+     * @dev Owner must have USDC and approve this contract first
+     *      USDC is transferred from owner to contract for refund handling
      */
     function placeBidFor(
         uint256 slot,
@@ -219,7 +221,10 @@ contract Billboard is Ownable, ReentrancyGuard {
 
         uint256 nextRound = getNextRoundId();
 
-        // Record bid (payment already received via x402)
+        // Transfer USDC from owner (server wallet) to contract for refund handling
+        usdc.safeTransferFrom(msg.sender, address(this), bidAmount);
+
+        // Record bid
         roundBids[slot][nextRound].push(Bid({
             bidder: advertiser,
             imageUrl: imageUrl,

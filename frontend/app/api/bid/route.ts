@@ -4,11 +4,17 @@ import { ethers } from "ethers";
 import {
   BILLBOARD_ADDRESS,
   BILLBOARD_ABI,
+  USDC_ADDRESS,
   SLOT_MAIN,
   SLOT_SECONDARY,
   MIN_BID_MAIN,
   MIN_BID_SECONDARY,
 } from "@/lib/contract";
+
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) external returns (bool)",
+  "function allowance(address owner, address spender) external view returns (uint256)",
+];
 
 type BidResponse =
   | { success: true; transactionHash: string }
@@ -80,7 +86,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<BidRespon
       }, { status: 400 });
     }
 
-    // Place bid on behalf of advertiser
+    // Approve USDC transfer to contract (for refund handling)
+    const usdc = new ethers.Contract(USDC_ADDRESS, ERC20_ABI, wallet);
+    const allowance = await usdc.allowance(wallet.address, BILLBOARD_ADDRESS);
+    if (allowance < bidAmountWei) {
+      const approveTx = await usdc.approve(BILLBOARD_ADDRESS, ethers.MaxUint256);
+      await approveTx.wait();
+    }
+
+    // Place bid on behalf of advertiser (USDC transferred from server wallet to contract)
     const tx = await billboard.placeBidFor(
       slot,
       advertiser,

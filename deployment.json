@@ -2,10 +2,10 @@
   "network": "monadTestnet",
   "chainId": 10143,
   "deployer": "0xCD4F5444dAba8b3f26681cF559BBe1E024Ab553B",
-  "deployedAt": "2026-02-12T05:42:28.718Z",
+  "deployedAt": "2026-02-12T05:57:26.610Z",
   "contracts": {
     "billboard": {
-      "address": "0xD874329ceCB89320a1306d4e0f4d644ab38B757b",
+      "address": "0x200E2AaC81E3E064ecA2aa3FA8ed986eb0733FdB",
       "slots": {
         "main": {
           "id": 0,
