@@ -38,6 +38,7 @@ export default function DocsPage() {
             <li><a href="#overview" className="text-gray-400 hover:text-white transition-colors">Overview</a></li>
             <li><a href="#schedule" className="text-gray-400 hover:text-white transition-colors">Auction Schedule</a></li>
             <li><a href="#slots" className="text-gray-400 hover:text-white transition-colors">Billboard Slots</a></li>
+            <li><a href="#upload" className="text-gray-400 hover:text-white transition-colors">Upload Image (IPFS)</a></li>
             <li><a href="#bid" className="text-gray-400 hover:text-white transition-colors">Place a Bid</a></li>
             <li><a href="#api" className="text-gray-400 hover:text-white transition-colors">API Reference</a></li>
             <li><a href="#contracts" className="text-gray-400 hover:text-white transition-colors">Contracts</a></li>
@@ -117,23 +118,59 @@ export default function DocsPage() {
           </div>
         </Section>
 
+        {/* Upload Image */}
+        <Section id="upload" title="Upload Image (IPFS)">
+          <p className="text-gray-400 mb-4">
+            Upload your billboard image to IPFS via Pinata. Images are stored permanently and cannot be changed after bidding.
+          </p>
+
+          <Code>{`// Step 1: Upload image to IPFS
+const formData = new FormData();
+formData.append("file", imageFile);
+
+const uploadRes = await fetch("https://your-domain.com/api/upload", {
+  method: "POST",
+  body: formData
+});
+
+const { ipfsUrl, gatewayUrl } = await uploadRes.json();
+// ipfsUrl: "ipfs://QmXyz..."  (stored on-chain)
+// gatewayUrl: "https://gateway.pinata.cloud/ipfs/QmXyz..."  (for preview)`}</Code>
+
+          <div className="mt-4 bg-gray-900 border border-gray-800 rounded-lg p-4">
+            <p className="text-white text-sm font-bold mb-2">Image Requirements:</p>
+            <ul className="text-gray-400 text-sm space-y-1 list-disc list-inside">
+              <li>Dimensions: 800x400px recommended (2:1 aspect ratio)</li>
+              <li>Formats: PNG, JPG, GIF, WebP</li>
+              <li>Max size: 5MB</li>
+            </ul>
+          </div>
+
+          <div className="mt-4 bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+            <p className="text-green-400 text-sm">
+              <span className="font-bold">Why IPFS?</span> Images stored on IPFS are content-addressed and permanent.
+              The URL cannot be changed after you bid, ensuring your ad displays exactly what you uploaded.
+            </p>
+          </div>
+        </Section>
+
         {/* Place a Bid */}
         <Section id="bid" title="Place a Bid">
           <p className="text-gray-400 mb-4">
             Use the API to place a bid during the bidding window.
           </p>
 
-          <Code>{`// Example: Place a $50 bid on the main billboard
+          <Code>{`// Step 2: Place bid with IPFS image URL
 const response = await fetch("https://your-domain.com/api/bid", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
-    slot: 0,                    // 0 = main, 1 = secondary
+    slot: 0,                        // 0 = main, 1 = secondary
     advertiser: "0xYourAddress",
-    imageUrl: "https://your-image.com/ad.png",
+    imageUrl: "ipfs://QmXyz...",    // IPFS URL from upload
     linkUrl: "https://your-website.com",
     title: "Your Company Name",
-    bidAmount: 50               // $50 USDC
+    bidAmount: 50                   // $50 USDC
   })
 });
 
@@ -143,13 +180,6 @@ if (result.success) {
 } else {
   console.log("Error:", result.error);
 }`}</Code>
-
-          <div className="mt-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-            <p className="text-yellow-500 text-sm">
-              <span className="font-bold">Image Requirements:</span> Recommended 800x400px (2:1 aspect ratio).
-              PNG or JPG. Host on IPFS, Imgur, or your own CDN.
-            </p>
-          </div>
 
           <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
             <p className="text-red-400 text-sm">
@@ -163,6 +193,23 @@ if (result.success) {
           <h4 className="text-white font-bold mb-4">Endpoints</h4>
 
           <FunctionDoc
+            name="POST /api/upload"
+            sig="POST /api/upload"
+            desc="Upload an image to IPFS via Pinata"
+          />
+
+          <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg mb-6">
+            <p className="text-white text-sm font-bold mb-2">Request: FormData with file field</p>
+            <p className="text-white text-sm font-bold mt-3 mb-2">Response:</p>
+            <Code>{`{
+  "success": true,
+  "ipfsHash": "QmXyz...",
+  "ipfsUrl": "ipfs://QmXyz...",
+  "gatewayUrl": "https://gateway.pinata.cloud/ipfs/QmXyz..."
+}`}</Code>
+          </div>
+
+          <FunctionDoc
             name="POST /api/bid"
             sig="POST /api/bid"
             desc="Place a bid on a billboard slot (only during bidding window)"
@@ -173,7 +220,7 @@ if (result.success) {
             <Code>{`{
   "slot": 0,                  // 0 = main ($10 min), 1 = secondary ($1 min)
   "advertiser": "0x...",      // Your wallet address
-  "imageUrl": "https://...",  // Billboard image URL
+  "imageUrl": "ipfs://...",   // IPFS URL from /api/upload
   "linkUrl": "https://...",   // Click-through URL (optional)
   "title": "Company Name",    // Your title (max 100 chars)
   "bidAmount": 50             // Bid in USDC (e.g., 50 = $50)

@@ -99,6 +99,21 @@ function shortenAddress(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
+const IPFS_GATEWAY = process.env.NEXT_PUBLIC_IPFS_GATEWAY || "https://gateway.pinata.cloud/ipfs";
+
+// Demo placeholder images on IPFS
+const DEMO_IMAGE_MAIN = "ipfs://bafkreifbnrrw2g7kgpwdlchrze6msnvynv33jhiuwf4vx66o65w4yltvqm";
+const DEMO_IMAGE_SECONDARY = "ipfs://bafkreibokwwmsjknf3ge5oq5fr6e3pk37pv7tgfhfwprdw33zfadrmmhpm";
+
+function resolveImageUrl(url: string): string {
+  if (!url) return "";
+  // Convert ipfs:// URLs to gateway URLs
+  if (url.startsWith("ipfs://")) {
+    return `${IPFS_GATEWAY}/${url.slice(7)}`;
+  }
+  return url;
+}
+
 export default function Home() {
   const [data, setData] = useState<BillboardData>(DEMO_DATA);
   const [loading, setLoading] = useState(true);
@@ -341,7 +356,7 @@ function BillboardSlot({ slot, highestBid, highestBidder, biddingOpen, label, la
           className="block"
         >
           <img
-            src={slot.imageUrl || `https://placehold.co/${isLarge ? "800x400" : "600x300"}/1a1a2e/666?text=YOUR+AD+HERE`}
+            src={resolveImageUrl(slot.imageUrl) || resolveImageUrl(isLarge ? DEMO_IMAGE_MAIN : DEMO_IMAGE_SECONDARY)}
             alt={slot.title || "Billboard"}
             className={`w-full ${isLarge ? "aspect-[2/1]" : "aspect-[2/1]"} object-cover hover:opacity-90 transition-opacity`}
           />
