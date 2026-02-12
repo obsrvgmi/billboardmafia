@@ -1,0 +1,23 @@
+{
+  "network": "monadTestnet",
+  "chainId": 10143,
+  "deployer": "0xCD4F5444dAba8b3f26681cF559BBe1E024Ab553B",
+  "deployedAt": "2026-02-12T05:05:13.881Z",
+  "contracts": {
+    "mafiaToken": {
+      "address": "0xCbD93986023C27d0413dE02795fC86d1CDaFAD71",
+      "name": "Mafia Token",
+      "symbol": "MAFIA",
+      "totalSupply": "1000000000"
+    },
+    "billboard": {
+      "address": "0x720a030D27575f36965d2a44507c1a72eFcec145",
+      "minBid": "1",
+      "minIncrement": "10%",
+      "adDuration": "30 days"
+    },
+    "usdc": {
+      "address": "0x534b2f3A21130d7a60830c2Df862319e593943A3"
+    }
+  }
+}
