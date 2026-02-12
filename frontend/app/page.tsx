@@ -10,9 +10,21 @@ interface SlotData {
   imageUrl: string;
   linkUrl: string;
   bidAmount: number;
+  roundId: number;
   timeRemaining: number;
   isActive: boolean;
-  minimumBid: number;
+}
+
+interface BiddingData {
+  isOpen: boolean;
+  currentRoundId: number;
+  nextRoundId: number;
+  timeUntilBiddingOpens: number;
+  timeUntilRoundEnds: number;
+  mainHighestBid: number;
+  mainHighestBidder: string;
+  secondaryHighestBid: number;
+  secondaryHighestBidder: string;
 }
 
 interface BillboardData {
@@ -20,10 +32,11 @@ interface BillboardData {
     main: SlotData;
     secondary: SlotData;
   };
+  bidding: BiddingData;
   stats: {
     totalRevenue: number;
     totalBurned: number;
-    totalAds: number;
+    totalRounds: number;
   };
 }
 
@@ -32,51 +45,64 @@ const DEMO_DATA: BillboardData = {
   slots: {
     main: {
       slot: 0,
-      advertiser: "0x0000...0000",
-      title: "Your Ad Here",
-      imageUrl: "https://placehold.co/800x400/1a1a2e/9d4edd?text=MAIN+BILLBOARD",
+      advertiser: "0x0000000000000000000000000000000000000000",
+      title: "No Ad Yet",
+      imageUrl: "",
       linkUrl: "",
       bidAmount: 0,
+      roundId: 0,
       timeRemaining: 0,
       isActive: false,
-      minimumBid: 10,
     },
     secondary: {
       slot: 1,
-      advertiser: "0x0000...0000",
-      title: "Your Ad Here",
-      imageUrl: "https://placehold.co/400x200/1a1a2e/f59e0b?text=SECONDARY",
+      advertiser: "0x0000000000000000000000000000000000000000",
+      title: "No Ad Yet",
+      imageUrl: "",
       linkUrl: "",
       bidAmount: 0,
+      roundId: 0,
       timeRemaining: 0,
       isActive: false,
-      minimumBid: 1,
     },
+  },
+  bidding: {
+    isOpen: false,
+    currentRoundId: 0,
+    nextRoundId: 1,
+    timeUntilBiddingOpens: 0,
+    timeUntilRoundEnds: 0,
+    mainHighestBid: 0,
+    mainHighestBidder: "0x0000000000000000000000000000000000000000",
+    secondaryHighestBid: 0,
+    secondaryHighestBidder: "0x0000000000000000000000000000000000000000",
   },
   stats: {
     totalRevenue: 0,
     totalBurned: 0,
-    totalAds: 0,
+    totalRounds: 0,
   },
 };
 
 function formatTime(seconds: number): string {
-  if (seconds <= 0) return "Available";
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  if (days > 0) return `${days}d ${hours}h left`;
+  if (seconds <= 0) return "0s";
+  const hours = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
-  return `${hours}h ${mins}m left`;
+  const secs = seconds % 60;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
 }
 
 function shortenAddress(addr: string): string {
-  if (!addr || addr === "0x0000000000000000000000000000000000000000") return "Available";
+  if (!addr || addr === "0x0000000000000000000000000000000000000000") return "None";
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 export default function Home() {
   const [data, setData] = useState<BillboardData>(DEMO_DATA);
   const [loading, setLoading] = useState(true);
+  const [countdown, setCountdown] = useState({ bidding: 0, round: 0 });
 
   useEffect(() => {
     async function fetchData() {
@@ -85,6 +111,10 @@ export default function Home() {
         if (res.ok) {
           const json = await res.json();
           setData(json);
+          setCountdown({
+            bidding: json.bidding.timeUntilBiddingOpens,
+            round: json.bidding.timeUntilRoundEnds,
+          });
         }
       } catch (error) {
         console.error("Failed to fetch billboard data:", error);
@@ -93,13 +123,23 @@ export default function Home() {
       }
     }
     fetchData();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchData, 30000);
+    const interval = setInterval(fetchData, 10000); // Refresh every 10s
     return () => clearInterval(interval);
   }, []);
 
+  // Countdown timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCountdown((prev) => ({
+        bidding: Math.max(0, prev.bidding - 1),
+        round: Math.max(0, prev.round - 1),
+      }));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const { main, secondary } = data.slots;
-  const { totalRevenue, totalBurned, totalAds } = data.stats;
+  const { bidding, stats } = data;
 
   return (
     <main className="min-h-screen bg-black">
@@ -121,24 +161,44 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Bidding Status Banner */}
+      <div className={`py-3 px-4 text-center ${bidding.isOpen ? "bg-green-900/50" : "bg-gray-900"}`}>
+        {bidding.isOpen ? (
+          <div className="flex items-center justify-center gap-3">
+            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+            <span className="text-green-400 font-bold">BIDDING OPEN</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-white">Round {bidding.nextRoundId} starts in {formatTime(countdown.round)}</span>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center gap-3">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+            <span className="text-yellow-400 font-bold">BIDDING CLOSED</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-white">Opens in {formatTime(countdown.bidding)}</span>
+            <span className="text-gray-400">|</span>
+            <span className="text-gray-400">Round ends in {formatTime(countdown.round)}</span>
+          </div>
+        )}
+      </div>
+
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-            <span className="text-green-500 text-xs uppercase tracking-wider">live on monad</span>
-          </div>
           <h1 className="text-3xl md:text-5xl font-black text-white mb-2">
-            Billboard Mafia
+            12-Hour Billboard Auctions
           </h1>
           <p className="text-gray-500">
-            Agent-operated advertising. Pay USDC. Outbid to take over.
+            Bid in the 30-min window. Highest bid wins. Losers get refunded.
           </p>
         </div>
 
         {/* Main Billboard */}
         <BillboardSlot
           slot={main}
+          highestBid={bidding.mainHighestBid}
+          highestBidder={bidding.mainHighestBidder}
+          biddingOpen={bidding.isOpen}
           label="MAIN BILLBOARD"
           labelColor="text-purple-400"
           minBidLabel="$10"
@@ -149,6 +209,9 @@ export default function Home() {
         {/* Secondary Billboard */}
         <BillboardSlot
           slot={secondary}
+          highestBid={bidding.secondaryHighestBid}
+          highestBidder={bidding.secondaryHighestBidder}
+          biddingOpen={bidding.isOpen}
           label="SECONDARY"
           labelColor="text-yellow-400"
           minBidLabel="$1"
@@ -158,10 +221,10 @@ export default function Home() {
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <StatCard label="Total Revenue" value={`$${totalRevenue.toFixed(2)}`} />
-          <StatCard label="Total Ads" value={totalAds.toString()} />
-          <StatCard label="MAFIA Burned" value={totalBurned > 0 ? totalBurned.toLocaleString() : "0"} />
-          <StatCard label="Slots" value="2" />
+          <StatCard label="Total Revenue" value={`$${stats.totalRevenue.toFixed(2)}`} />
+          <StatCard label="Rounds Completed" value={stats.totalRounds.toString()} />
+          <StatCard label="$BB Burned" value={stats.totalBurned > 0 ? stats.totalBurned.toLocaleString() : "0"} />
+          <StatCard label="Current Round" value={`#${bidding.currentRoundId}`} />
         </div>
 
         {/* How it Works */}
@@ -169,31 +232,31 @@ export default function Home() {
           <h2 className="text-white font-bold text-xl mb-4">How It Works</h2>
           <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center">
-              <div className="text-3xl mb-2">💰</div>
-              <h3 className="text-white font-bold mb-1">Pay USDC</h3>
+              <div className="text-3xl mb-2">⏰</div>
+              <h3 className="text-white font-bold mb-1">12-Hour Rounds</h3>
               <p className="text-gray-500 text-sm">
-                Bid via x402 API to display your ad for 30 days
+                Ads display 00:00-12:00 and 12:00-00:00 UTC
               </p>
             </div>
             <div className="text-center">
               <div className="text-3xl mb-2">🎯</div>
-              <h3 className="text-white font-bold mb-1">2 Slots</h3>
+              <h3 className="text-white font-bold mb-1">30-Min Bidding</h3>
               <p className="text-gray-500 text-sm">
-                Main ($10 min) and Secondary ($1 min) billboards
+                Bid window opens 30 min before each round
               </p>
             </div>
             <div className="text-center">
-              <div className="text-3xl mb-2">⚔️</div>
-              <h3 className="text-white font-bold mb-1">Get Outbid</h3>
+              <div className="text-3xl mb-2">🏆</div>
+              <h3 className="text-white font-bold mb-1">Highest Wins</h3>
               <p className="text-gray-500 text-sm">
-                Anyone can outbid by 10%+ and take over immediately
+                Top bid wins. Losers get full refund.
               </p>
             </div>
             <div className="text-center">
               <div className="text-3xl mb-2">🔥</div>
               <h3 className="text-white font-bold mb-1">Buyback & Burn</h3>
               <p className="text-gray-500 text-sm">
-                All revenue buys and burns $MAFIA tokens
+                Revenue buys & burns $BB tokens daily
               </p>
             </div>
           </div>
@@ -213,6 +276,9 @@ export default function Home() {
 
 interface BillboardSlotProps {
   slot: SlotData;
+  highestBid: number;
+  highestBidder: string;
+  biddingOpen: boolean;
   label: string;
   labelColor: string;
   minBidLabel: string;
@@ -220,8 +286,10 @@ interface BillboardSlotProps {
   loading: boolean;
 }
 
-function BillboardSlot({ slot, label, labelColor, minBidLabel, size, loading }: BillboardSlotProps) {
+function BillboardSlot({ slot, highestBid, highestBidder, biddingOpen, label, labelColor, minBidLabel, size, loading }: BillboardSlotProps) {
   const isLarge = size === "large";
+  const hasCurrentAd = slot.isActive && slot.advertiser !== "0x0000000000000000000000000000000000000000";
+  const hasBids = highestBid > 0;
 
   return (
     <div className={`mb-8 ${isLarge ? "" : "max-w-2xl mx-auto"}`}>
@@ -246,21 +314,21 @@ function BillboardSlot({ slot, label, labelColor, minBidLabel, size, loading }: 
         {/* Status bar */}
         <div className="absolute top-0 left-0 right-0 bg-black/80 backdrop-blur px-4 py-2 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <span className={`font-bold ${slot.isActive ? "text-white" : "text-gray-500"}`}>
-              {slot.isActive ? slot.title : "Available"}
+            <span className={`font-bold ${hasCurrentAd ? "text-white" : "text-gray-500"}`}>
+              {hasCurrentAd ? slot.title : "No Active Ad"}
             </span>
-            {slot.isActive && (
+            {hasCurrentAd && (
               <span className="text-gray-500 text-sm">by {shortenAddress(slot.advertiser)}</span>
             )}
           </div>
           <div className="flex items-center gap-3 text-sm">
-            {slot.isActive ? (
+            {hasCurrentAd ? (
               <>
                 <span className="text-green-400 font-mono">${slot.bidAmount} USDC</span>
-                <span className="text-gray-500">{formatTime(slot.timeRemaining)}</span>
+                <span className="text-gray-500">{formatTime(slot.timeRemaining)} left</span>
               </>
             ) : (
-              <span className="text-yellow-400">Place first bid!</span>
+              <span className="text-gray-500">Waiting for winner</span>
             )}
           </div>
         </div>
@@ -283,23 +351,43 @@ function BillboardSlot({ slot, label, labelColor, minBidLabel, size, loading }: 
         <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent h-16"></div>
       </div>
 
-      {/* Bid CTA */}
-      <div className="mt-3 flex items-center justify-between">
-        <p className="text-gray-500 text-sm">
-          {slot.isActive
-            ? `Outbid for $${slot.minimumBid.toFixed(2)}+ USDC`
-            : `Start bidding at ${minBidLabel} USDC`}
-        </p>
-        <Link
-          href={`/docs#slot-${slot.slot}`}
-          className={`text-sm font-bold px-4 py-1 rounded ${
-            isLarge
-              ? "bg-purple-500 hover:bg-purple-400 text-white"
-              : "bg-yellow-500 hover:bg-yellow-400 text-black"
-          } transition-colors`}
-        >
-          Bid via API
-        </Link>
+      {/* Bidding Info */}
+      <div className="mt-3 bg-gray-900/50 border border-gray-800 rounded-lg p-3">
+        <div className="flex items-center justify-between">
+          <div>
+            {biddingOpen ? (
+              <div>
+                <span className="text-green-400 text-sm font-bold">BIDDING OPEN</span>
+                {hasBids ? (
+                  <p className="text-gray-400 text-sm">
+                    Highest: <span className="text-white font-mono">${highestBid}</span> by {shortenAddress(highestBidder)}
+                  </p>
+                ) : (
+                  <p className="text-gray-400 text-sm">No bids yet. Start at {minBidLabel}</p>
+                )}
+              </div>
+            ) : (
+              <div>
+                <span className="text-yellow-400 text-sm font-bold">BIDDING CLOSED</span>
+                <p className="text-gray-400 text-sm">
+                  {hasBids ? `Winner: ${shortenAddress(highestBidder)} with $${highestBid}` : "No bids for next round"}
+                </p>
+              </div>
+            )}
+          </div>
+          <Link
+            href={`/docs#slot-${slot.slot}`}
+            className={`text-sm font-bold px-4 py-2 rounded ${
+              biddingOpen
+                ? isLarge
+                  ? "bg-purple-500 hover:bg-purple-400 text-white"
+                  : "bg-yellow-500 hover:bg-yellow-400 text-black"
+                : "bg-gray-700 text-gray-400 cursor-not-allowed"
+            } transition-colors`}
+          >
+            {biddingOpen ? "Place Bid" : "Closed"}
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   console.log("=".repeat(60));
-  console.log("Deploying Billboard Mafia (2 Slots)");
+  console.log("Deploying Billboard Mafia (Timed Auction)");
   console.log("=".repeat(60));
   console.log("Deployer:", deployer.address);
 
@@ -16,17 +16,8 @@ async function main() {
   // USDC address on Monad Testnet
   const USDC_ADDRESS = "0x534b2f3A21130d7a60830c2Df862319e593943A3";
 
-  // ============ 1. Deploy MafiaToken ============
-  console.log("1. Deploying MafiaToken ($MAFIA)...");
-
-  const MafiaToken = await ethers.getContractFactory("MafiaToken");
-  const mafiaToken = await MafiaToken.deploy();
-  await mafiaToken.waitForDeployment();
-  const tokenAddress = await mafiaToken.getAddress();
-  console.log("   MafiaToken deployed to:", tokenAddress);
-
-  // ============ 2. Deploy Billboard ============
-  console.log("\n2. Deploying Billboard (2 slots)...");
+  // ============ Deploy Billboard ============
+  console.log("Deploying Billboard (timed auction)...");
 
   const Billboard = await ethers.getContractFactory("Billboard");
   const billboard = await Billboard.deploy(USDC_ADDRESS);
@@ -39,8 +30,7 @@ async function main() {
   console.log("DEPLOYMENT COMPLETE - BILLBOARD MAFIA");
   console.log("=".repeat(60));
   console.log("");
-  console.log("Contract Addresses:");
-  console.log("  MafiaToken:", tokenAddress);
+  console.log("Contract Address:");
   console.log("  Billboard:", billboardAddress);
   console.log("  USDC:", USDC_ADDRESS);
   console.log("");
@@ -48,10 +38,11 @@ async function main() {
   console.log("  Slot 0 (MAIN): Min bid $10 USDC");
   console.log("  Slot 1 (SECONDARY): Min bid $1 USDC");
   console.log("");
-  console.log("Rules:");
-  console.log("  - Outbid requires: 10%+ higher");
-  console.log("  - Ad duration: 30 days");
-  console.log("  - No refunds when outbid");
+  console.log("Auction Rules:");
+  console.log("  - 12-hour rounds (00:00-12:00, 12:00-00:00 UTC)");
+  console.log("  - Bidding window: 30 min before each round");
+  console.log("  - Highest bid wins, losers refunded");
+  console.log("  - $BB token on nads.fun for buybacks");
 
   // Save deployment info
   const network = await ethers.provider.getNetwork();
@@ -62,19 +53,23 @@ async function main() {
     deployer: deployer.address,
     deployedAt: new Date().toISOString(),
     contracts: {
-      mafiaToken: {
-        address: tokenAddress,
-        symbol: "MAFIA",
-      },
       billboard: {
         address: billboardAddress,
         slots: {
           main: { id: 0, minBid: "$10" },
           secondary: { id: 1, minBid: "$1" },
         },
+        rules: {
+          roundDuration: "12 hours",
+          biddingWindow: "30 minutes",
+          refundLosers: true,
+        },
       },
       usdc: {
         address: USDC_ADDRESS,
+      },
+      bbToken: {
+        note: "Deploy on nads.fun",
       },
     },
   };

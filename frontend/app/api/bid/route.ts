@@ -16,7 +16,7 @@ type BidResponse =
 
 /**
  * POST /api/bid
- * Place a bid on a billboard slot
+ * Place a bid for the next round
  *
  * Body: {
  *   slot: number,         // 0 = main ($10 min), 1 = secondary ($1 min)
@@ -27,8 +27,7 @@ type BidResponse =
  *   bidAmount: number     // Bid in USDC (e.g., 100 for $100)
  * }
  *
- * Note: In production, this would be x402-protected.
- * For now, it's a direct endpoint for testing.
+ * Note: Bidding only open 30 minutes before each 12-hour round
  */
 export async function POST(request: NextRequest): Promise<NextResponse<BidResponse>> {
   try {
@@ -63,8 +62,23 @@ export async function POST(request: NextRequest): Promise<NextResponse<BidRespon
     // Create contract instance
     const billboard = new ethers.Contract(BILLBOARD_ADDRESS, BILLBOARD_ABI, wallet);
 
-    // Convert bid to USDC units (6 decimals)
+    // Check if bidding is open
+    const biddingOpen = await billboard.isBiddingOpen();
+    if (!biddingOpen) {
+      const timeUntil = await billboard.timeUntilBiddingOpens();
+      return NextResponse.json({
+        error: `Bidding is closed. Opens in ${Math.floor(Number(timeUntil) / 60)} minutes`
+      }, { status: 400 });
+    }
+
+    // Check if bid is high enough
+    const currentHighest = await billboard.highestBid(slot);
     const bidAmountWei = ethers.parseUnits(bidAmount.toString(), 6);
+    if (bidAmountWei <= currentHighest) {
+      return NextResponse.json({
+        error: `Bid must be higher than current highest: $${Number(currentHighest) / 1e6}`
+      }, { status: 400 });
+    }
 
     // Place bid on behalf of advertiser
     const tx = await billboard.placeBidFor(
@@ -86,8 +100,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<BidRespon
     console.error("Bid error:", error);
 
     if (error instanceof Error) {
-      if (error.message.includes("Bid must be 10% higher")) {
-        return NextResponse.json({ error: "Bid must be 10% higher than current" }, { status: 400 });
+      if (error.message.includes("Bidding is closed")) {
+        return NextResponse.json({ error: "Bidding window is closed" }, { status: 400 });
+      }
+      if (error.message.includes("Bid must be higher")) {
+        return NextResponse.json({ error: "Bid must be higher than current highest" }, { status: 400 });
       }
       if (error.message.includes("Bid below minimum")) {
         return NextResponse.json({ error: "Bid below minimum for slot" }, { status: 400 });
@@ -103,21 +120,31 @@ export async function POST(request: NextRequest): Promise<NextResponse<BidRespon
 
 /**
  * GET /api/bid
- * Get both billboard slots info
+ * Get billboard status, current ads, and bidding info
  */
 export async function GET(): Promise<NextResponse> {
   try {
     const wallet = getServerWallet();
     const billboard = new ethers.Contract(BILLBOARD_ADDRESS, BILLBOARD_ABI, wallet);
 
-    const [allSlots, stats, minBidMain, minBidSecondary] = await Promise.all([
+    const [allSlots, biddingStatus, stats] = await Promise.all([
       billboard.getAllSlots(),
+      billboard.getBiddingStatus(),
       billboard.getStats(),
-      billboard.getMinimumBid(SLOT_MAIN),
-      billboard.getMinimumBid(SLOT_SECONDARY),
     ]);
 
     const [mainAd, mainActive, mainTimeRemaining, secondaryAd, secondaryActive, secondaryTimeRemaining] = allSlots;
+    const [
+      biddingOpen,
+      currentRoundId,
+      nextRoundId,
+      timeUntilBidding,
+      timeUntilNextRound,
+      mainHighestBid,
+      mainHighestBidder,
+      secondaryHighestBid,
+      secondaryHighestBidder,
+    ] = biddingStatus;
 
     return NextResponse.json({
       slots: {
@@ -128,9 +155,9 @@ export async function GET(): Promise<NextResponse> {
           linkUrl: mainAd.linkUrl,
           title: mainAd.title,
           bidAmount: Number(mainAd.bidAmount) / 1e6,
+          roundId: Number(mainAd.roundId),
           timeRemaining: Number(mainTimeRemaining),
           isActive: mainActive,
-          minimumBid: Number(minBidMain) / 1e6,
         },
         secondary: {
           slot: SLOT_SECONDARY,
@@ -139,15 +166,26 @@ export async function GET(): Promise<NextResponse> {
           linkUrl: secondaryAd.linkUrl,
           title: secondaryAd.title,
           bidAmount: Number(secondaryAd.bidAmount) / 1e6,
+          roundId: Number(secondaryAd.roundId),
           timeRemaining: Number(secondaryTimeRemaining),
           isActive: secondaryActive,
-          minimumBid: Number(minBidSecondary) / 1e6,
         },
+      },
+      bidding: {
+        isOpen: biddingOpen,
+        currentRoundId: Number(currentRoundId),
+        nextRoundId: Number(nextRoundId),
+        timeUntilBiddingOpens: Number(timeUntilBidding),
+        timeUntilRoundEnds: Number(timeUntilNextRound),
+        mainHighestBid: Number(mainHighestBid) / 1e6,
+        mainHighestBidder: mainHighestBidder,
+        secondaryHighestBid: Number(secondaryHighestBid) / 1e6,
+        secondaryHighestBidder: secondaryHighestBidder,
       },
       stats: {
         totalRevenue: Number(stats[0]) / 1e6,
         totalBurned: Number(stats[1]),
-        totalAds: Number(stats[2]),
+        totalRounds: Number(stats[2]),
       },
     });
   } catch (error) {

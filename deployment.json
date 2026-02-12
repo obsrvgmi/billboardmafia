@@ -2,14 +2,10 @@
   "network": "monadTestnet",
   "chainId": 10143,
   "deployer": "0xCD4F5444dAba8b3f26681cF559BBe1E024Ab553B",
-  "deployedAt": "2026-02-12T05:21:17.072Z",
+  "deployedAt": "2026-02-12T05:42:28.718Z",
   "contracts": {
-    "mafiaToken": {
-      "address": "0x15176bBdEaA777DeA1Ed2e32230C49cd3915F1A6",
-      "symbol": "MAFIA"
-    },
     "billboard": {
-      "address": "0xF4C5EEfef9defF93716BF91cC9c1Fe9f6bb2Cd4a",
+      "address": "0xD874329ceCB89320a1306d4e0f4d644ab38B757b",
       "slots": {
         "main": {
           "id": 0,
@@ -19,10 +15,18 @@
           "id": 1,
           "minBid": "$1"
         }
+      },
+      "rules": {
+        "roundDuration": "12 hours",
+        "biddingWindow": "30 minutes",
+        "refundLosers": true
       }
     },
     "usdc": {
       "address": "0x534b2f3A21130d7a60830c2Df862319e593943A3"
+    },
+    "bbToken": {
+      "note": "Deploy on nads.fun"
     }
   }
 }
