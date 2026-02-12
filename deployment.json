@@ -1,0 +1,32 @@
+{
+  "network": "monadTestnet",
+  "chainId": 10143,
+  "deployer": "0xCD4F5444dAba8b3f26681cF559BBe1E024Ab553B",
+  "deployedAt": "2026-02-12T06:02:34.545Z",
+  "contracts": {
+    "billboard": {
+      "address": "0x68be3880e36a88259c4Bcfa8338AB428A82f7C04",
+      "slots": {
+        "main": {
+          "id": 0,
+          "minBid": "$10"
+        },
+        "secondary": {
+          "id": 1,
+          "minBid": "$1"
+        }
+      },
+      "rules": {
+        "roundDuration": "12 hours",
+        "biddingWindow": "30 minutes",
+        "refundLosers": true
+      }
+    },
+    "usdc": {
+      "address": "0x534b2f3A21130d7a60830c2Df862319e593943A3"
+    },
+    "bbToken": {
+      "note": "Deploy on nads.fun"
+    }
+  }
+}

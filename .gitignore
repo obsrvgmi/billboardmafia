@@ -1,3 +1,29 @@
+# Dependencies
+node_modules/
+.npm-cache/
+
+# Build
+.next/
+artifacts/
+cache/
+typechain-types/
+dist/
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Other
 nul
 .claude/
-node_modules/

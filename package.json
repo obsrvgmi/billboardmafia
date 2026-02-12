@@ -1,0 +1,35 @@
+{
+  "name": "billboard-mafia",
+  "version": "1.0.0",
+  "description": "Decentralized billboard advertising on Monad - agent operated",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "deploy:local": "npx hardhat run scripts/deploy.ts --network localhost",
+    "deploy:monad": "npx hardhat run scripts/deploy.ts --network monadTestnet",
+    "node": "npx hardhat node",
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd frontend && npm run start",
+    "postinstall": "cd frontend && npm install"
+  },
+  "keywords": [
+    "monad",
+    "blockchain",
+    "billboard",
+    "advertising",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "@types/node": "^22.0.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.4.0"
+  }
+}
