@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BILLBOARD_ADDRESS, MAFIA_TOKEN_ADDRESS, USDC_ADDRESS } from "@/lib/contract";
+import { BILLBOARD_ADDRESS, BB_TOKEN_ADDRESS, USDC_ADDRESS } from "@/lib/contract";
 
 export default function DocsPage() {
   return (
@@ -27,7 +27,7 @@ export default function DocsPage() {
             Billboard Mafia API
           </h1>
           <p className="text-gray-500 text-lg">
-            Bid for the billboard via x402 USDC payments. Outbid to take over. All revenue burns $MAFIA.
+            Timed auctions every 12 hours. Bid in the 30-min window. Highest bid wins. Revenue burns $BB.
           </p>
         </div>
 
@@ -36,7 +36,8 @@ export default function DocsPage() {
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-3">On this page</p>
           <ul className="space-y-2 text-sm">
             <li><a href="#overview" className="text-gray-400 hover:text-white transition-colors">Overview</a></li>
-            <li><a href="#rules" className="text-gray-400 hover:text-white transition-colors">Billboard Rules</a></li>
+            <li><a href="#schedule" className="text-gray-400 hover:text-white transition-colors">Auction Schedule</a></li>
+            <li><a href="#slots" className="text-gray-400 hover:text-white transition-colors">Billboard Slots</a></li>
             <li><a href="#bid" className="text-gray-400 hover:text-white transition-colors">Place a Bid</a></li>
             <li><a href="#api" className="text-gray-400 hover:text-white transition-colors">API Reference</a></li>
             <li><a href="#contracts" className="text-gray-400 hover:text-white transition-colors">Contracts</a></li>
@@ -46,76 +47,113 @@ export default function DocsPage() {
         {/* Overview */}
         <Section id="overview" title="Overview">
           <p className="text-gray-400 mb-4">
-            Billboard Mafia is a decentralized advertising platform on Monad. One billboard, infinite competition.
+            Billboard Mafia runs timed auctions for advertising slots. Two rounds per day, highest bid wins.
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <StatCard label="Payment" value="USDC" />
-            <StatCard label="Min Bid" value="$1" />
-            <StatCard label="Increment" value="+10%" />
-            <StatCard label="Duration" value="30 days" />
+            <StatCard label="Rounds" value="12 hours" />
+            <StatCard label="Bidding" value="30 min" />
+            <StatCard label="Main Min" value="$10" />
+            <StatCard label="Secondary Min" value="$1" />
           </div>
 
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
             <p className="text-white text-sm font-bold mb-2">How it works:</p>
             <ol className="text-gray-400 text-sm space-y-1 list-decimal list-inside">
-              <li>Pay USDC to display your ad on the billboard</li>
-              <li>Your ad stays for 30 days OR until someone outbids you</li>
-              <li>Outbidder must pay 10%+ more than current bid</li>
-              <li>No refunds when outbid (you got exposure)</li>
-              <li>All revenue is used to buyback & burn $MAFIA tokens</li>
+              <li>Bidding opens 30 minutes before each round</li>
+              <li>Place your bid with USDC during the window</li>
+              <li>When round starts, highest bid wins the slot</li>
+              <li>Losing bids are automatically refunded</li>
+              <li>Winner&apos;s ad displays for 12 hours</li>
+              <li>Revenue is used to buyback & burn $BB tokens</li>
             </ol>
           </div>
         </Section>
 
-        {/* Rules */}
-        <Section id="rules" title="Billboard Rules">
+        {/* Schedule */}
+        <Section id="schedule" title="Auction Schedule (UTC)">
           <div className="space-y-4">
-            <RuleCard
-              title="Minimum Bid"
-              desc="$1 USDC to start. If billboard is active, you must bid 10%+ higher than current."
-            />
-            <RuleCard
-              title="Duration"
-              desc="30 days from when your bid is placed. Clock resets if you get outbid."
-            />
-            <RuleCard
-              title="No Refunds"
-              desc="If you get outbid, you don't get your money back. But you got exposure until then."
-            />
-            <RuleCard
-              title="Buyback & Burn"
-              desc="100% of revenue is used to buy $MAFIA from DEX and burn it. Deflationary."
-            />
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <p className="text-purple-400 font-bold mb-2">Round 1: 00:00 - 12:00 UTC</p>
+              <p className="text-gray-500 text-sm">Bidding window: 23:30 - 00:00 (previous day)</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
+              <p className="text-yellow-400 font-bold mb-2">Round 2: 12:00 - 00:00 UTC</p>
+              <p className="text-gray-500 text-sm">Bidding window: 11:30 - 12:00</p>
+            </div>
+          </div>
+
+          <div className="mt-4 bg-green-500/10 border border-green-500/30 rounded-lg p-4">
+            <p className="text-green-400 text-sm">
+              <span className="font-bold">Pro tip:</span> Use the homepage to see live countdown to next bidding window.
+            </p>
+          </div>
+        </Section>
+
+        {/* Slots */}
+        <Section id="slots" title="Billboard Slots">
+          <div className="space-y-4">
+            <div id="slot-0" className="scroll-mt-20">
+              <RuleCard
+                title="Slot 0: MAIN BILLBOARD"
+                desc="Premium placement, larger display. Minimum bid: $10 USDC"
+              />
+            </div>
+            <div id="slot-1" className="scroll-mt-20">
+              <RuleCard
+                title="Slot 1: SECONDARY"
+                desc="Smaller placement, budget-friendly. Minimum bid: $1 USDC"
+              />
+            </div>
+          </div>
+
+          <div className="mt-4 p-4 bg-gray-900 border border-gray-800 rounded-lg">
+            <p className="text-white text-sm font-bold mb-2">Bidding Rules:</p>
+            <ul className="text-gray-400 text-sm space-y-1 list-disc list-inside">
+              <li>Any bid higher than current highest wins (no minimum increment)</li>
+              <li>You can bid multiple times to outbid others</li>
+              <li>Only the winning bid is charged; losers get full refund</li>
+            </ul>
           </div>
         </Section>
 
         {/* Place a Bid */}
         <Section id="bid" title="Place a Bid">
           <p className="text-gray-400 mb-4">
-            Use the API to place a bid on the billboard.
+            Use the API to place a bid during the bidding window.
           </p>
 
-          <Code>{`// Example: Place a $100 bid
-const response = await fetch("https://billboard-mafia.vercel.app/api/bid", {
+          <Code>{`// Example: Place a $50 bid on the main billboard
+const response = await fetch("https://your-domain.com/api/bid", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({
+    slot: 0,                    // 0 = main, 1 = secondary
     advertiser: "0xYourAddress",
     imageUrl: "https://your-image.com/ad.png",
     linkUrl: "https://your-website.com",
     title: "Your Company Name",
-    bidAmount: 100  // $100 USDC
+    bidAmount: 50               // $50 USDC
   })
 });
 
 const result = await response.json();
-console.log("Transaction:", result.transactionHash);`}</Code>
+if (result.success) {
+  console.log("Bid placed! TX:", result.transactionHash);
+} else {
+  console.log("Error:", result.error);
+}`}</Code>
 
           <div className="mt-6 bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
             <p className="text-yellow-500 text-sm">
               <span className="font-bold">Image Requirements:</span> Recommended 800x400px (2:1 aspect ratio).
               PNG or JPG. Host on IPFS, Imgur, or your own CDN.
+            </p>
+          </div>
+
+          <div className="mt-4 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+            <p className="text-red-400 text-sm">
+              <span className="font-bold">Important:</span> Bids can only be placed during the 30-minute bidding window before each round.
             </p>
           </div>
         </Section>
@@ -127,42 +165,77 @@ console.log("Transaction:", result.transactionHash);`}</Code>
           <FunctionDoc
             name="POST /api/bid"
             sig="POST /api/bid"
-            desc="Place a bid on the billboard"
+            desc="Place a bid on a billboard slot (only during bidding window)"
           />
 
           <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg">
             <p className="text-white text-sm font-bold mb-2">Request Body:</p>
             <Code>{`{
+  "slot": 0,                  // 0 = main ($10 min), 1 = secondary ($1 min)
   "advertiser": "0x...",      // Your wallet address
   "imageUrl": "https://...",  // Billboard image URL
   "linkUrl": "https://...",   // Click-through URL (optional)
   "title": "Company Name",    // Your title (max 100 chars)
-  "bidAmount": 100            // Bid in USDC (e.g., 100 = $100)
+  "bidAmount": 50             // Bid in USDC (e.g., 50 = $50)
 }`}</Code>
+          </div>
+
+          <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg">
+            <p className="text-white text-sm font-bold mb-2">Success Response:</p>
+            <Code>{`{
+  "success": true,
+  "transactionHash": "0x..."
+}`}</Code>
+          </div>
+
+          <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg">
+            <p className="text-white text-sm font-bold mb-2">Error Responses:</p>
+            <Code>{`// Bidding closed
+{ "error": "Bidding is closed. Opens in 45 minutes" }
+
+// Bid too low
+{ "error": "Bid must be higher than current highest: $25" }
+
+// Below minimum
+{ "error": "Bid must be at least $10 for this slot" }`}</Code>
           </div>
 
           <FunctionDoc
             name="GET /api/bid"
             sig="GET /api/bid"
-            desc="Get current billboard info and minimum bid required"
+            desc="Get current billboard status, bidding info, and stats"
           />
 
           <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg">
             <p className="text-white text-sm font-bold mb-2">Response:</p>
             <Code>{`{
-  "current": {
-    "advertiser": "0x...",
-    "imageUrl": "https://...",
-    "title": "Current Ad",
-    "bidAmount": 100,
-    "timeRemaining": 2592000,
-    "isActive": true
+  "slots": {
+    "main": {
+      "slot": 0,
+      "advertiser": "0x...",
+      "imageUrl": "https://...",
+      "title": "Current Ad",
+      "bidAmount": 50,
+      "timeRemaining": 43200,
+      "isActive": true
+    },
+    "secondary": { ... }
   },
-  "minimumBid": 110,
+  "bidding": {
+    "isOpen": true,
+    "currentRoundId": 40992,
+    "nextRoundId": 40993,
+    "timeUntilBiddingOpens": 0,
+    "timeUntilRoundEnds": 1800,
+    "mainHighestBid": 75,
+    "mainHighestBidder": "0x...",
+    "secondaryHighestBid": 5,
+    "secondaryHighestBidder": "0x..."
+  },
   "stats": {
     "totalRevenue": 500,
     "totalBurned": 1000000,
-    "totalAds": 5
+    "totalRounds": 10
   }
 }`}</Code>
           </div>
@@ -174,8 +247,8 @@ console.log("Transaction:", result.transactionHash);`}</Code>
 
           <div className="space-y-3">
             <ContractRow name="Billboard" address={BILLBOARD_ADDRESS} />
-            <ContractRow name="MafiaToken" address={MAFIA_TOKEN_ADDRESS} />
             <ContractRow name="USDC (Testnet)" address={USDC_ADDRESS} />
+            <ContractRow name="$BB Token" address={BB_TOKEN_ADDRESS || "Deploy on nads.fun"} />
           </div>
 
           <div className="mt-4 p-3 bg-gray-900 border border-gray-800 rounded-lg">
@@ -226,10 +299,13 @@ function RuleCard({ title, desc }: { title: string; desc: string }) {
 }
 
 function ContractRow({ name, address }: { name: string; address: string }) {
+  const displayAddr = address.startsWith("0x")
+    ? `${address.slice(0, 10)}...${address.slice(-8)}`
+    : address;
   return (
     <div className="flex items-center justify-between p-3 bg-gray-900 border border-gray-800 rounded-lg">
       <span className="text-white text-sm font-bold">{name}</span>
-      <code className="text-yellow-400 text-xs">{address.slice(0, 10)}...{address.slice(-8)}</code>
+      <code className="text-yellow-400 text-xs">{displayAddr}</code>
     </div>
   );
 }
