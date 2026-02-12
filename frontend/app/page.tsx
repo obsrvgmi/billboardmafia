@@ -3,33 +3,103 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
-// Demo billboard data
-const DEMO_AD = {
-  advertiser: "0x1234...5678",
-  title: "Monad Testnet",
-  imageUrl: "https://placehold.co/800x400/1a1a2e/9d4edd?text=YOUR+AD+HERE",
-  linkUrl: "https://monad.xyz",
-  bidAmount: 100,
-  timeRemaining: 25 * 24 * 60 * 60, // 25 days in seconds
-  isActive: true,
+interface SlotData {
+  slot: number;
+  advertiser: string;
+  title: string;
+  imageUrl: string;
+  linkUrl: string;
+  bidAmount: number;
+  timeRemaining: number;
+  isActive: boolean;
+  minimumBid: number;
+}
+
+interface BillboardData {
+  slots: {
+    main: SlotData;
+    secondary: SlotData;
+  };
+  stats: {
+    totalRevenue: number;
+    totalBurned: number;
+    totalAds: number;
+  };
+}
+
+// Demo data for initial render
+const DEMO_DATA: BillboardData = {
+  slots: {
+    main: {
+      slot: 0,
+      advertiser: "0x0000...0000",
+      title: "Your Ad Here",
+      imageUrl: "https://placehold.co/800x400/1a1a2e/9d4edd?text=MAIN+BILLBOARD",
+      linkUrl: "",
+      bidAmount: 0,
+      timeRemaining: 0,
+      isActive: false,
+      minimumBid: 10,
+    },
+    secondary: {
+      slot: 1,
+      advertiser: "0x0000...0000",
+      title: "Your Ad Here",
+      imageUrl: "https://placehold.co/400x200/1a1a2e/f59e0b?text=SECONDARY",
+      linkUrl: "",
+      bidAmount: 0,
+      timeRemaining: 0,
+      isActive: false,
+      minimumBid: 1,
+    },
+  },
+  stats: {
+    totalRevenue: 0,
+    totalBurned: 0,
+    totalAds: 0,
+  },
 };
 
+function formatTime(seconds: number): string {
+  if (seconds <= 0) return "Available";
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  if (days > 0) return `${days}d ${hours}h left`;
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${mins}m left`;
+}
+
+function shortenAddress(addr: string): string {
+  if (!addr || addr === "0x0000000000000000000000000000000000000000") return "Available";
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+}
+
 export default function Home() {
-  const [ad, setAd] = useState(DEMO_AD);
-  const [timeDisplay, setTimeDisplay] = useState("");
+  const [data, setData] = useState<BillboardData>(DEMO_DATA);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const formatTime = (seconds: number) => {
-      const days = Math.floor(seconds / 86400);
-      const hours = Math.floor((seconds % 86400) / 3600);
-      if (days > 0) return `${days}d ${hours}h remaining`;
-      const mins = Math.floor((seconds % 3600) / 60);
-      return `${hours}h ${mins}m remaining`;
-    };
-    setTimeDisplay(formatTime(ad.timeRemaining));
-  }, [ad.timeRemaining]);
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/bid");
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+        }
+      } catch (error) {
+        console.error("Failed to fetch billboard data:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchData, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const minBid = ad.isActive ? Math.ceil(ad.bidAmount * 1.1) : 1;
+  const { main, secondary } = data.slots;
+  const { totalRevenue, totalBurned, totalAds } = data.stats;
 
   return (
     <main className="min-h-screen bg-black">
@@ -51,97 +121,79 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Main Billboard */}
-      <section className="max-w-6xl mx-auto px-4 py-12">
+      {/* Hero */}
+      <section className="max-w-6xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
             <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
             <span className="text-green-500 text-xs uppercase tracking-wider">live on monad</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-black text-white mb-2">
-            The Billboard
+            Billboard Mafia
           </h1>
           <p className="text-gray-500">
-            Agent-operated advertising. Outbid to take over.
+            Agent-operated advertising. Pay USDC. Outbid to take over.
           </p>
         </div>
 
-        {/* Billboard Display */}
-        <div className="relative bg-gray-900 border-4 border-gray-700 rounded-xl overflow-hidden shadow-2xl mb-8">
-          {/* Status bar */}
-          <div className="absolute top-0 left-0 right-0 bg-black/80 backdrop-blur px-4 py-2 flex items-center justify-between z-10">
-            <div className="flex items-center gap-2">
-              <span className="text-yellow-500 font-bold">{ad.title}</span>
-              <span className="text-gray-500 text-sm">by {ad.advertiser}</span>
-            </div>
-            <div className="flex items-center gap-3 text-sm">
-              <span className="text-green-400 font-mono">${ad.bidAmount} USDC</span>
-              <span className="text-gray-500">{timeDisplay}</span>
-            </div>
-          </div>
+        {/* Main Billboard */}
+        <BillboardSlot
+          slot={main}
+          label="MAIN BILLBOARD"
+          labelColor="text-purple-400"
+          minBidLabel="$10"
+          size="large"
+          loading={loading}
+        />
 
-          {/* Billboard Image */}
-          <a href={ad.linkUrl} target="_blank" rel="noopener noreferrer" className="block">
-            <img
-              src={ad.imageUrl}
-              alt={ad.title}
-              className="w-full aspect-[2/1] object-cover hover:opacity-90 transition-opacity"
-            />
-          </a>
-
-          {/* Bottom bar */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent h-16"></div>
-        </div>
-
-        {/* Bid Section */}
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div>
-              <h2 className="text-white font-bold text-xl mb-1">Take Over This Billboard</h2>
-              <p className="text-gray-500 text-sm">
-                Minimum bid: <span className="text-yellow-500 font-mono">${minBid} USDC</span> (+10% over current)
-              </p>
-            </div>
-            <Link
-              href="/docs#bid"
-              className="bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 rounded-lg transition-colors"
-            >
-              Place Bid via API
-            </Link>
-          </div>
-        </div>
+        {/* Secondary Billboard */}
+        <BillboardSlot
+          slot={secondary}
+          label="SECONDARY"
+          labelColor="text-yellow-400"
+          minBidLabel="$1"
+          size="small"
+          loading={loading}
+        />
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
-          <StatCard label="Current Bid" value={`$${ad.bidAmount}`} />
-          <StatCard label="Time Left" value="25 days" />
-          <StatCard label="Total Burned" value="0 MAFIA" />
-          <StatCard label="Total Ads" value="1" />
+          <StatCard label="Total Revenue" value={`$${totalRevenue.toFixed(2)}`} />
+          <StatCard label="Total Ads" value={totalAds.toString()} />
+          <StatCard label="MAFIA Burned" value={totalBurned > 0 ? totalBurned.toLocaleString() : "0"} />
+          <StatCard label="Slots" value="2" />
         </div>
 
         {/* How it Works */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
           <h2 className="text-white font-bold text-xl mb-4">How It Works</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-4 gap-6">
             <div className="text-center">
               <div className="text-3xl mb-2">💰</div>
-              <h3 className="text-white font-bold mb-1">Pay to Display</h3>
+              <h3 className="text-white font-bold mb-1">Pay USDC</h3>
               <p className="text-gray-500 text-sm">
-                Bid USDC via x402 to show your ad on the billboard for 30 days
+                Bid via x402 API to display your ad for 30 days
+              </p>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl mb-2">🎯</div>
+              <h3 className="text-white font-bold mb-1">2 Slots</h3>
+              <p className="text-gray-500 text-sm">
+                Main ($10 min) and Secondary ($1 min) billboards
               </p>
             </div>
             <div className="text-center">
               <div className="text-3xl mb-2">⚔️</div>
               <h3 className="text-white font-bold mb-1">Get Outbid</h3>
               <p className="text-gray-500 text-sm">
-                Anyone can outbid you by 10%+ and take over immediately
+                Anyone can outbid by 10%+ and take over immediately
               </p>
             </div>
             <div className="text-center">
               <div className="text-3xl mb-2">🔥</div>
               <h3 className="text-white font-bold mb-1">Buyback & Burn</h3>
               <p className="text-gray-500 text-sm">
-                All revenue is used to buy and burn $MAFIA tokens
+                All revenue buys and burns $MAFIA tokens
               </p>
             </div>
           </div>
@@ -156,6 +208,100 @@ export default function Home() {
         </div>
       </footer>
     </main>
+  );
+}
+
+interface BillboardSlotProps {
+  slot: SlotData;
+  label: string;
+  labelColor: string;
+  minBidLabel: string;
+  size: "large" | "small";
+  loading: boolean;
+}
+
+function BillboardSlot({ slot, label, labelColor, minBidLabel, size, loading }: BillboardSlotProps) {
+  const isLarge = size === "large";
+
+  return (
+    <div className={`mb-8 ${isLarge ? "" : "max-w-2xl mx-auto"}`}>
+      {/* Label */}
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-xs font-bold uppercase tracking-wider ${labelColor}`}>
+          {label}
+        </span>
+        <span className="text-xs text-gray-500">
+          Min bid: {minBidLabel} USDC
+        </span>
+      </div>
+
+      {/* Billboard Display */}
+      <div className={`relative bg-gray-900 border-4 ${isLarge ? "border-purple-500/50" : "border-yellow-500/50"} rounded-xl overflow-hidden shadow-2xl`}>
+        {loading && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-20">
+            <div className="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full"></div>
+          </div>
+        )}
+
+        {/* Status bar */}
+        <div className="absolute top-0 left-0 right-0 bg-black/80 backdrop-blur px-4 py-2 flex items-center justify-between z-10">
+          <div className="flex items-center gap-2">
+            <span className={`font-bold ${slot.isActive ? "text-white" : "text-gray-500"}`}>
+              {slot.isActive ? slot.title : "Available"}
+            </span>
+            {slot.isActive && (
+              <span className="text-gray-500 text-sm">by {shortenAddress(slot.advertiser)}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            {slot.isActive ? (
+              <>
+                <span className="text-green-400 font-mono">${slot.bidAmount} USDC</span>
+                <span className="text-gray-500">{formatTime(slot.timeRemaining)}</span>
+              </>
+            ) : (
+              <span className="text-yellow-400">Place first bid!</span>
+            )}
+          </div>
+        </div>
+
+        {/* Billboard Image */}
+        <a
+          href={slot.linkUrl || "#"}
+          target={slot.linkUrl ? "_blank" : undefined}
+          rel="noopener noreferrer"
+          className="block"
+        >
+          <img
+            src={slot.imageUrl || `https://placehold.co/${isLarge ? "800x400" : "600x300"}/1a1a2e/666?text=YOUR+AD+HERE`}
+            alt={slot.title || "Billboard"}
+            className={`w-full ${isLarge ? "aspect-[2/1]" : "aspect-[2/1]"} object-cover hover:opacity-90 transition-opacity`}
+          />
+        </a>
+
+        {/* Bottom gradient */}
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent h-16"></div>
+      </div>
+
+      {/* Bid CTA */}
+      <div className="mt-3 flex items-center justify-between">
+        <p className="text-gray-500 text-sm">
+          {slot.isActive
+            ? `Outbid for $${slot.minimumBid.toFixed(2)}+ USDC`
+            : `Start bidding at ${minBidLabel} USDC`}
+        </p>
+        <Link
+          href={`/docs#slot-${slot.slot}`}
+          className={`text-sm font-bold px-4 py-1 rounded ${
+            isLarge
+              ? "bg-purple-500 hover:bg-purple-400 text-white"
+              : "bg-yellow-500 hover:bg-yellow-400 text-black"
+          } transition-colors`}
+        >
+          Bid via API
+        </Link>
+      </div>
+    </div>
   );
 }
 

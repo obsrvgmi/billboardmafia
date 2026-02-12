@@ -5,7 +5,7 @@ async function main() {
   const [deployer] = await ethers.getSigners();
 
   console.log("=".repeat(60));
-  console.log("Deploying Billboard Mafia");
+  console.log("Deploying Billboard Mafia (2 Slots)");
   console.log("=".repeat(60));
   console.log("Deployer:", deployer.address);
 
@@ -18,7 +18,6 @@ async function main() {
 
   // ============ 1. Deploy MafiaToken ============
   console.log("1. Deploying MafiaToken ($MAFIA)...");
-  console.log("   Total Supply: 1,000,000,000 MAFIA");
 
   const MafiaToken = await ethers.getContractFactory("MafiaToken");
   const mafiaToken = await MafiaToken.deploy();
@@ -27,7 +26,7 @@ async function main() {
   console.log("   MafiaToken deployed to:", tokenAddress);
 
   // ============ 2. Deploy Billboard ============
-  console.log("\n2. Deploying Billboard...");
+  console.log("\n2. Deploying Billboard (2 slots)...");
 
   const Billboard = await ethers.getContractFactory("Billboard");
   const billboard = await Billboard.deploy(USDC_ADDRESS);
@@ -45,8 +44,11 @@ async function main() {
   console.log("  Billboard:", billboardAddress);
   console.log("  USDC:", USDC_ADDRESS);
   console.log("");
-  console.log("Billboard Rules:");
-  console.log("  - Minimum bid: $1 USDC");
+  console.log("Billboard Slots:");
+  console.log("  Slot 0 (MAIN): Min bid $10 USDC");
+  console.log("  Slot 1 (SECONDARY): Min bid $1 USDC");
+  console.log("");
+  console.log("Rules:");
   console.log("  - Outbid requires: 10%+ higher");
   console.log("  - Ad duration: 30 days");
   console.log("  - No refunds when outbid");
@@ -62,15 +64,14 @@ async function main() {
     contracts: {
       mafiaToken: {
         address: tokenAddress,
-        name: "Mafia Token",
         symbol: "MAFIA",
-        totalSupply: "1000000000",
       },
       billboard: {
         address: billboardAddress,
-        minBid: "1",
-        minIncrement: "10%",
-        adDuration: "30 days",
+        slots: {
+          main: { id: 0, minBid: "$10" },
+          secondary: { id: 1, minBid: "$1" },
+        },
       },
       usdc: {
         address: USDC_ADDRESS,

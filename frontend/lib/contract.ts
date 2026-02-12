@@ -3,10 +3,17 @@ export const BILLBOARD_ADDRESS = process.env.NEXT_PUBLIC_BILLBOARD_ADDRESS || "0
 export const MAFIA_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_MAFIA_TOKEN_ADDRESS || "0x0000000000000000000000000000000000000000";
 export const USDC_ADDRESS = "0x534b2f3A21130d7a60830c2Df862319e593943A3";
 
-// Billboard ABI
+// Slot constants
+export const SLOT_MAIN = 0;
+export const SLOT_SECONDARY = 1;
+export const MIN_BID_MAIN = 10; // $10 USDC
+export const MIN_BID_SECONDARY = 1; // $1 USDC
+
+// Billboard ABI (2-slot version)
 export const BILLBOARD_ABI = [
   {
     inputs: [
+      { internalType: "uint256", name: "slot", type: "uint256" },
       { internalType: "string", name: "imageUrl", type: "string" },
       { internalType: "string", name: "linkUrl", type: "string" },
       { internalType: "string", name: "title", type: "string" },
@@ -19,6 +26,7 @@ export const BILLBOARD_ABI = [
   },
   {
     inputs: [
+      { internalType: "uint256", name: "slot", type: "uint256" },
       { internalType: "address", name: "advertiser", type: "address" },
       { internalType: "string", name: "imageUrl", type: "string" },
       { internalType: "string", name: "linkUrl", type: "string" },
@@ -31,8 +39,8 @@ export const BILLBOARD_ABI = [
     type: "function",
   },
   {
-    inputs: [],
-    name: "getCurrentAd",
+    inputs: [{ internalType: "uint256", name: "slot", type: "uint256" }],
+    name: "getSlotAd",
     outputs: [
       { internalType: "address", name: "advertiser", type: "address" },
       { internalType: "string", name: "imageUrl", type: "string" },
@@ -47,9 +55,56 @@ export const BILLBOARD_ABI = [
   },
   {
     inputs: [],
+    name: "getAllSlots",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "advertiser", type: "address" },
+          { internalType: "string", name: "imageUrl", type: "string" },
+          { internalType: "string", name: "linkUrl", type: "string" },
+          { internalType: "string", name: "title", type: "string" },
+          { internalType: "uint256", name: "bidAmount", type: "uint256" },
+          { internalType: "uint256", name: "startTime", type: "uint256" },
+          { internalType: "uint256", name: "expiryTime", type: "uint256" },
+        ],
+        internalType: "struct Billboard.Ad",
+        name: "mainAd",
+        type: "tuple",
+      },
+      { internalType: "bool", name: "mainActive", type: "bool" },
+      { internalType: "uint256", name: "mainTimeRemaining", type: "uint256" },
+      {
+        components: [
+          { internalType: "address", name: "advertiser", type: "address" },
+          { internalType: "string", name: "imageUrl", type: "string" },
+          { internalType: "string", name: "linkUrl", type: "string" },
+          { internalType: "string", name: "title", type: "string" },
+          { internalType: "uint256", name: "bidAmount", type: "uint256" },
+          { internalType: "uint256", name: "startTime", type: "uint256" },
+          { internalType: "uint256", name: "expiryTime", type: "uint256" },
+        ],
+        internalType: "struct Billboard.Ad",
+        name: "secondaryAd",
+        type: "tuple",
+      },
+      { internalType: "bool", name: "secondaryActive", type: "bool" },
+      { internalType: "uint256", name: "secondaryTimeRemaining", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "slot", type: "uint256" }],
     name: "getMinimumBid",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "slot", type: "uint256" }],
+    name: "getMinBidForSlot",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "pure",
     type: "function",
   },
   {
@@ -59,8 +114,6 @@ export const BILLBOARD_ABI = [
       { internalType: "uint256", name: "_totalRevenue", type: "uint256" },
       { internalType: "uint256", name: "_totalBurned", type: "uint256" },
       { internalType: "uint256", name: "_totalAds", type: "uint256" },
-      { internalType: "uint256", name: "_currentBid", type: "uint256" },
-      { internalType: "bool", name: "_isActive", type: "bool" },
     ],
     stateMutability: "view",
     type: "function",
